@@ -1,5 +1,8 @@
+import sys
+import os
+
 class CryptographicPrimitives:
-    # provide internal math layers including custom substitution and permutation configurations
+    """Provides internal math layers including custom Substitution and Permutation configurations."""
     
     # 8-bit Substitution Box (Non-linear mapping for Confusion)
     S_BOX = [
@@ -19,7 +22,6 @@ class CryptographicPrimitives:
 
     @classmethod
     def apply_sbox(cls, value_32bit: int) -> int:
-        # for splitting a 32bit integer into 4 bytes, processes them via S-Box, and recombine them
         b0 = (value_32bit >> 24) & 0x3F
         b1 = (value_32bit >> 16) & 0x3F
         b2 = (value_32bit >> 8) & 0x3F
@@ -34,7 +36,6 @@ class CryptographicPrimitives:
 
     @classmethod
     def apply_pbox(cls, value_32bit: int) -> int:
-        # rearrange spatial bit positions inside a 32-bit integer according to the P-Box mapping
         permuted_value = 0
         for target_idx, source_idx in enumerate(cls.P_BOX):
             bit = (value_32bit >> source_idx) & 1
@@ -43,37 +44,32 @@ class CryptographicPrimitives:
 
 
 class AdvancedFeistelEngine:
-    # core 64bit Feistel multiround simulation engine
+    """Core 64bit Feistel multiround simulation engine with reporting integrations."""
     
     def __init__(self, total_rounds: int = 8):
         self.total_rounds = total_rounds
         self.block_size = 8  
 
     def _round_function_f(self, right_half: int, subkey: int) -> int:
-        # non-linear cipher round execution mixing state inputs
         mixed_input = (right_half ^ subkey) & 0xFFFFFFFF
         substituted = CryptographicPrimitives.apply_sbox(mixed_input)
         return CryptographicPrimitives.apply_pbox(substituted)
 
     def _derive_round_subkeys(self, master_key: int) -> list:
-        # derives a distinct subkey array configuration from the master key input
         subkeys = []
         for i in range(self.total_rounds):
-            # dynamic circular shifts combined with a round constant to prevent symmetric keys
             shifted_key = ((master_key >> (i * 3)) | (master_key << (64 - (i * 3)))) & 0xFFFFFFFF
             subkeys.append(shifted_key ^ (i * 0x7F4A3C2B))
         return subkeys
 
     @staticmethod
     def apply_pkcs7_padding(data: bytes, block_size: int = 8) -> bytes:
-        # applying the PKCS#7 standard block alignment padding
         padding_len = block_size - (len(data) % block_size)
         padding_bytes = bytes([padding_len] * padding_len)
         return data + padding_bytes
 
     @staticmethod
     def remove_pkcs7_padding(padded_data: bytes) -> bytes:
-        # verifies and strips standard PKCS#7 padding values from the decrypted blocks
         padding_len = padded_data[-1]
         if padding_len < 1 or padding_len > 8:
             raise ValueError("Cryptographic Failure: Invalid alignment formatting metadata identified.")
@@ -83,7 +79,6 @@ class AdvancedFeistelEngine:
         return padded_data[:-padding_len]
 
     def encrypt_block_64(self, block_bytes: bytes, master_key: int) -> bytes:
-        # run encryption updates over a single 64bit block chunk
         value_64bit = int.from_bytes(block_bytes, byteorder='big')
         left = (value_64bit >> 32) & 0xFFFFFFFF
         right = value_64bit & 0xFFFFFFFF
@@ -96,17 +91,15 @@ class AdvancedFeistelEngine:
             next_right = (left ^ f_output) & 0xFFFFFFFF
             left, right = next_left, next_right
             
-        # final round swap reversal before recombining halves
         combined_output = (right << 32) | left
         return combined_output.to_bytes(8, byteorder='big')
 
     def decrypt_block_64(self, ciphertext_bytes: bytes, master_key: int) -> bytes:
-        # runs decryption transformations by reversing subkey applications
         value_64bit = int.from_bytes(ciphertext_bytes, byteorder='big')
         left = (value_64bit >> 32) & 0xFFFFFFFF
         right = value_64bit & 0xFFFFFFFF
         
-        subkeys = self._derive_round_subkeys(master_key)[::-1]  # Reverse subkeys
+        subkeys = self._derive_round_subkeys(master_key)[::-1]  
         
         for round_idx in range(self.total_rounds):
             next_left = right
@@ -117,59 +110,135 @@ class AdvancedFeistelEngine:
         combined_output = (right << 32) | left
         return combined_output.to_bytes(8, byteorder='big')
 
-    def encrypt_message(self, plaintext_string: str, master_key: int) -> bytes:
-        # Processes long-form string messages through block division logic (ECB Mode layout)
+    def encrypt_message(self, plaintext_string: str, master_key: int) -> tuple:
+        """Processes long-form string messages and retains execution logs for reports."""
         raw_bytes = plaintext_string.encode('utf-8')
         padded_bytes = self.apply_pkcs7_padding(raw_bytes, self.block_size)
         
+        logs = []
         ciphertext_result = bytearray()
+        block_count = 0
+        
         for i in range(0, len(padded_bytes), self.block_size):
             block = padded_bytes[i:i + self.block_size]
             encrypted_block = self.encrypt_block_64(block, master_key)
             ciphertext_result.extend(encrypted_block)
             
-        return bytes(ciphertext_result)
+            logs.append({
+                "block_num": block_count,
+                "plain_hex": block.hex(),
+                "cipher_hex": encrypted_block.hex()
+            })
+            block_count += 1
+            
+        return bytes(ciphertext_result), logs
 
-    def decrypt_message(self, ciphertext_bytes: bytes, master_key: int) -> str:
-        # Decrypts and maps concatenated binary strings back to plain text strings
+    def decrypt_message(self, ciphertext_bytes: bytes, master_key: int) -> tuple:
+        """Decrypts messages and populates a sequence analysis log tracking layer."""
+        logs = []
         decrypted_padded = bytearray()
+        block_count = 0
+        
         for i in range(0, len(ciphertext_bytes), self.block_size):
             block = ciphertext_bytes[i:i + self.block_size]
             decrypted_block = self.decrypt_block_64(block, master_key)
             decrypted_padded.extend(decrypted_block)
             
+            logs.append({
+                "block_num": block_count,
+                "cipher_hex": block.hex(),
+                "decrypted_hex": decrypted_block.hex()
+            })
+            block_count += 1
+            
         clean_bytes = self.remove_pkcs7_padding(bytes(decrypted_padded))
-        return clean_bytes.decode('utf-8')
+        return clean_bytes.decode('utf-8'), logs
+
+
+class CryptographicReportWriter:
+    """Handles technical execution data consolidation into a cleanly formatted external Markdown file."""
+    
+    REPORT_FILE = "cryptographic_report.md"
+
+    @classmethod
+    def initialize_report(cls):
+        """Creates or resets the report file with header metadata structural frames."""
+        with open(cls.REPORT_FILE, "w", encoding="utf-8") as f:
+            f.write("# BIT4138 Advanced Cryptography Framework Execution Report\n")
+            f.write(f"Generated automated lab evaluation analysis tracking layers.\n")
+            f.write("---\n\n")
+
+    @classmethod
+    def append_encryption_log(cls, plaintext: str, master_key: int, ciphertext_hex: str, logs: list):
+        """Appends technical data from encryption execution sequences."""
+        with open(cls.REPORT_FILE, "a", encoding="utf-8") as f:
+            f.write("## 1. Encryption Transaction Operations Log\n")
+            f.write(f"* **Input Raw String:** `{plaintext}`\n")
+            f.write(f"* **Master Configuration Key:** `0x{master_key:016X}`\n")
+            f.write(f"* **Aggregated Ciphertext Output:** `{ciphertext_hex}`\n\n")
+            f.write("### Matrix Block Segmentation Profiles\n")
+            f.write("| Block Sequence Index | Plaintext Segment Block (Hex) | Resulting Ciphertext Block (Hex) |\n")
+            f.write("|---|---|---|\n")
+            for log in logs:
+                f.write(f"| Block #{log['block_num']} | `{log['plain_hex']}` | `{log['cipher_hex']}` |\n")
+            f.write("\n---\n\n")
+
+    @classmethod
+    def append_decryption_log(cls, ciphertext_hex: str, master_key: int, recovered_text: str, logs: list):
+        """Appends analytical validation tracking profiles from decryption execution runs."""
+        with open(cls.REPORT_FILE, "a", encoding="utf-8") as f:
+            f.write("## 2. Decryption Verification Operations Log\n")
+            f.write(f"* **Target Ciphertext Payload Input:** `{ciphertext_hex}`\n")
+            f.write(f"* **Verification Master Key Scheme:** `0x{master_key:016X}`\n")
+            f.write(f"* **Successfully Recovered Plain Text String:** `{recovered_text}`\n\n")
+            f.write("### Block Parsing Verification Matrices\n")
+            f.write("| Block Sequence Index | Target Ciphertext Input Block (Hex) | Decrypted Output Block (Hex) |\n")
+            f.write("|---|---|---|\n")
+            for log in logs:
+                f.write(f"| Block #{log['block_num']} | `{log['cipher_hex']}` | `{log['decrypted_hex']}` |\n")
+            f.write("\n---\n\n")
+
+    @classmethod
+    def append_avalanche_log(cls, input_orig: str, input_alt: str, c1_hex: str, c2_hex: str, metrics: dict):
+        """Appends statistical validation parameters resulting from active avalanche experiments."""
+        with open(cls.REPORT_FILE, "a", encoding="utf-8") as f:
+            f.write("## 3. Diffusion Evaluation: Avalanche Effect Experiment\n")
+            f.write(f"* **Baseline Plaintext Vector ($P_1$):** `{input_orig}`\n")
+            f.write(f"* **Altered Plaintext Vector ($P_2$):** `{input_alt}` (Single bit modified configuration)\n")
+            f.write(f"* **Baseline Ciphertext Hex Output ($C_1$):** `{c1_hex}`\n")
+            f.write(f"* **Altered Ciphertext Hex Output ($C_2$):** `{c2_hex}`\n\n")
+            f.write("### Statistical Measurement Performance Indicators\n")
+            f.write(f"| Evaluation Parameter Metric | Tracked Output Value Measurements |\n")
+            f.write(f"|---|---||\n")
+            f.write(f"| Total Aggregated Block Sizing Bit Constraints | {metrics['total_bits']} bits |\n")
+            f.write(f"| Divergent Flipped Bit Intercept Count (Hamming Distance) | {metrics['flipped_bits']} bits |\n")
+            f.write(f"| Evaluated Diffusion Cascade Density Ratio | **{metrics['ratio']:.2f}%** |\n")
+            f.write(f"| Security Threshold Framework Status Check | **{metrics['status']}** |\n")
+            f.write("\n---")
 
 
 class CryptanalysisLabSuite:
-    # contains verification utilities for statistical randomness metrics testing
+    """Contains verification utilities for statistical randomness metrics testing."""
     
     @staticmethod
     def count_bit_differences(bytes_a: bytes, bytes_b: bytes) -> int:
-        # computes the exact hamming distance (flipped bit counts) between two byte strings
         diff_count = 0
         for b1, b2 in zip(bytes_a, bytes_b):
             xor_result = b1 ^ b2
-            # count set bits (hamming weight)
             diff_count += bin(xor_result).count('1')
         return diff_count
 
     @classmethod
     def execute_avalanche_experiment(cls, cipher_engine: AdvancedFeistelEngine, text_input: str, master_key: int):
-        # runs the avalanche effect experiment 
         print("\n=== AVALANCHE EFFECT EXPERIMENT METRICS ===")
         print(f"Original Text Input:  '{text_input}'")
         
-        # Inject an isolated single-bit error into the plaintext input string
-        # Alter the first letter's lowest bit position string sequence
         altered_char = chr(ord(text_input[0]) ^ 1)
         altered_input = altered_char + text_input[1:]
         print(f"Altered Input String: '{altered_input}' (Single-bit discrepancy injected)")
         
-        # Process block encryption passes
-        c1 = cipher_engine.encrypt_message(text_input, master_key)
-        c2 = cipher_engine.encrypt_message(altered_input, master_key)
+        c1, _ = cipher_engine.encrypt_message(text_input, master_key)
+        c2, _ = cipher_engine.encrypt_message(altered_input, master_key)
         
         print(f"Ciphertext 1 (Hex):   {c1.hex()}")
         print(f"Ciphertext 2 (Hex):   {c2.hex()}")
@@ -178,20 +247,34 @@ class CryptanalysisLabSuite:
         flipped_bits = cls.count_bit_differences(c1, c2)
         avalanche_ratio = (flipped_bits / total_bits) * 100
         
+        status_msg = "Robust Diffusion Achieved" if 45 <= avalanche_ratio <= 55 else "Weak Linear Structural Profiling"
+        
         print(f"Total Evaluated Block Bits: {total_bits}")
         print(f"Observed Flipped Bit Count:  {flipped_bits}")
         print(f"Calculated Avalanche Ratio:  {avalanche_ratio:.2f}%")
-        print("Status Check: ", "Robust Diffusion Achieved" if 45 <= avalanche_ratio <= 55 else "Weak Linear Structural Profiling")
+        print(f"Status Check:  {status_msg}")
+        
+        metrics = {
+            "total_bits": total_bits,
+            "flipped_bits": flipped_bits,
+            "ratio": avalanche_ratio,
+            "status": status_msg
+        }
+        
+        CryptographicReportWriter.append_avalanche_log(text_input, altered_input, c1.hex(), c2.hex(), metrics)
+        print(f"\n[System Alert]: Avalanche data values appended to report file.")
 
 
 def display_interactive_menu():
-    # Builds an interactive console management layout for user control operations
     engine = AdvancedFeistelEngine(total_rounds=8)
-    master_key = 0xabcdef1234567890 # Static 64-bit encryption master key fallback
+    master_key = 0xabcdef1234567890 
+    
+    # Initialize/Reset the markdown file header setup at startup execution
+    CryptographicReportWriter.initialize_report()
     
     while True:
         print("\n" + "="*50)
-        print("    ADVANCED CRYPTOGRAPHIC SYSTEM    ")
+        print("    ADVANCED CRYPTOGRAPHIC SYSTEM & REPORT GENERATOR   ")
         print("="*50)
         print("1. Encrypt Plaintext Message")
         print("2. Decrypt Ciphertext Payload")
@@ -206,15 +289,29 @@ def display_interactive_menu():
             if not msg:
                 print("Error: Input string cannot be empty.")
                 continue
-            cipher_output = engine.encrypt_message(msg, master_key)
-            print(f"Resulting Output Encrypted Hex String: {cipher_output.hex()}")
+            cipher_output, enc_logs = engine.encrypt_message(msg, master_key)
+            cipher_hex = cipher_output.hex()
+            
+            print(f"\n--- CONSOLE ENCRYPTION OUTPUT DISPLAY ---")
+            print(f"Resulting Output Encrypted Hex String: {cipher_hex}")
+            print(f"Total Segments Parsed: {len(enc_logs)} blocks.")
+            
+            # Log execution events into markdown schema files
+            CryptographicReportWriter.append_encryption_log(msg, master_key, cipher_hex, enc_logs)
+            print("[System Alert]: Transaction log compiled inside 'cryptographic_report.md'.")
             
         elif choice == '2':
             hex_str = input("Enter hex-encoded ciphertext to decode: ").strip()
             try:
                 cipher_bytes = bytes.fromhex(hex_str)
-                decrypted_msg = engine.decrypt_message(cipher_bytes, master_key)
+                decrypted_msg, dec_logs = engine.decrypt_message(cipher_bytes, master_key)
+                
+                print(f"\n--- CONSOLE DECRYPTION OUTPUT DISPLAY ---")
                 print(f"Recovered Clean Decrypted String Text: {decrypted_msg}")
+                
+                # Log execution events into markdown schema files
+                CryptographicReportWriter.append_decryption_log(hex_str, master_key, decrypted_msg, dec_logs)
+                print("[System Alert]: Transaction verification data logged inside 'cryptographic_report.md'.")
             except Exception as e:
                 print(f"Execution Error: Processing error encountered during translation. Details: {e}")
                 
@@ -223,7 +320,7 @@ def display_interactive_menu():
             CryptanalysisLabSuite.execute_avalanche_experiment(engine, sample_text, master_key)
             
         elif choice == '4':
-            print("\nShutting down terminal session... Goodbye.")
+            print(f"\nShutting down terminal session... Final report written to '{os.path.abspath(CryptographicReportWriter.REPORT_FILE)}'.\nGoodbye.")
             break
             
         else:
@@ -231,5 +328,4 @@ def display_interactive_menu():
 
 
 if __name__ == "__main__":
-    # Launch system UI execution loop
     display_interactive_menu()
