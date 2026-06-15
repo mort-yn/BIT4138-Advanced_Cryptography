@@ -82,3 +82,63 @@ class AdvancedFeistelEngine:
                 raise ValueError("Cryptographic Failure: Structural padding byte mismatch occurred.")
         return padded_data[:-padding_len]
 
+    def encrypt_block_64(self, block_bytes: bytes, master_key: int) -> bytes:
+        # run encryption updates over a single 64bit block chunk
+        value_64bit = int.from_bytes(block_bytes, byteorder='big')
+        left = (value_64bit >> 32) & 0xFFFFFFFF
+        right = value_64bit & 0xFFFFFFFF
+        
+        subkeys = self._derive_round_subkeys(master_key)
+        
+        for round_idx in range(self.total_rounds):
+            next_left = right
+            f_output = self._round_function_f(right, subkeys[round_idx])
+            next_right = (left ^ f_output) & 0xFFFFFFFF
+            left, right = next_left, next_right
+            
+        # final round swap reversal before recombining halves
+        combined_output = (right << 32) | left
+        return combined_output.to_bytes(8, byteorder='big')
+
+    def decrypt_block_64(self, ciphertext_bytes: bytes, master_key: int) -> bytes:
+        # runs decryption transformations by reversing subkey applications
+        value_64bit = int.from_bytes(ciphertext_bytes, byteorder='big')
+        left = (value_64bit >> 32) & 0xFFFFFFFF
+        right = value_64bit & 0xFFFFFFFF
+        
+        subkeys = self._derive_round_subkeys(master_key)[::-1]  # Reverse subkeys
+        
+        for round_idx in range(self.total_rounds):
+            next_left = right
+            f_output = self._round_function_f(right, subkeys[round_idx])
+            next_right = (left ^ f_output) & 0xFFFFFFFF
+            left, right = next_left, next_right
+            
+        combined_output = (right << 32) | left
+        return combined_output.to_bytes(8, byteorder='big')
+
+    def encrypt_message(self, plaintext_string: str, master_key: int) -> bytes:
+        # Processes long-form string messages through block division logic (ECB Mode layout)
+        raw_bytes = plaintext_string.encode('utf-8')
+        padded_bytes = self.apply_pkcs7_padding(raw_bytes, self.block_size)
+        
+        ciphertext_result = bytearray()
+        for i in range(0, len(padded_bytes), self.block_size):
+            block = padded_bytes[i:i + self.block_size]
+            encrypted_block = self.encrypt_block_64(block, master_key)
+            ciphertext_result.extend(encrypted_block)
+            
+        return bytes(ciphertext_result)
+
+    def decrypt_message(self, ciphertext_bytes: bytes, master_key: int) -> str:
+        # Decrypts and maps concatenated binary strings back to plain text strings
+        decrypted_padded = bytearray()
+        for i in range(0, len(ciphertext_bytes), self.block_size):
+            block = ciphertext_bytes[i:i + self.block_size]
+            decrypted_block = self.decrypt_block_64(block, master_key)
+            decrypted_padded.extend(decrypted_block)
+            
+        clean_bytes = self.remove_pkcs7_padding(bytes(decrypted_padded))
+        return clean_bytes.decode('utf-8')
+
+
