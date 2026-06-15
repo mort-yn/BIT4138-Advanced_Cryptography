@@ -141,4 +141,52 @@ class AdvancedFeistelEngine:
         clean_bytes = self.remove_pkcs7_padding(bytes(decrypted_padded))
         return clean_bytes.decode('utf-8')
 
+def display_interactive_menu():
+    # Builds an interactive console management layout for user control operations
+    engine = AdvancedFeistelEngine(total_rounds=8)
+    master_key = 0xabcdef1234567890 # Static 64-bit encryption master key fallback
+    
+    while True:
+        print("\n" + "="*50)
+        print("    ADVANCED CRYPTOGRAPHIC SYSTEM    ")
+        print("="*50)
+        print("1. Encrypt Plaintext Message")
+        print("2. Decrypt Ciphertext Payload")
+        print("3. Execute Automated Avalanche Analysis Experiment")
+        print("4. Exit Terminal Interface")
+        print("="*50)
+        
+        choice = input("Select an option (1-4): ").strip()
+        
+        if choice == '1':
+            msg = input("Enter plain string text to encrypt: ")
+            if not msg:
+                print("Error: Input string cannot be empty.")
+                continue
+            cipher_output = engine.encrypt_message(msg, master_key)
+            print(f"Resulting Output Encrypted Hex String: {cipher_output.hex()}")
+            
+        elif choice == '2':
+            hex_str = input("Enter hex-encoded ciphertext to decode: ").strip()
+            try:
+                cipher_bytes = bytes.fromhex(hex_str)
+                decrypted_msg = engine.decrypt_message(cipher_bytes, master_key)
+                print(f"Recovered Clean Decrypted String Text: {decrypted_msg}")
+            except Exception as e:
+                print(f"Execution Error: Processing error encountered during translation. Details: {e}")
+                
+        # elif choice == '3':
+        #     sample_text = "Cryptography"
+        #     CryptanalysisLabSuite.execute_avalanche_experiment(engine, sample_text, master_key)
+            
+        # elif choice == '4':
+        #     print("\nShutting down terminal session... Goodbye.")
+        #     break
+            
+        # else:
+        #     print("Selection error. Please input a numerical value from 1 to 4.")
 
+
+if __name__ == "__main__":
+    # Launch system UI execution loop
+    display_interactive_menu()
