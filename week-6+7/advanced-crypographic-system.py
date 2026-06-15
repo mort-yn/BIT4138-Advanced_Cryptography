@@ -44,7 +44,7 @@ class CryptographicPrimitives:
 
 
 class AdvancedFeistelEngine:
-    """Core 64bit Feistel multiround simulation engine with reporting integrations."""
+    # core 64bit Feistel multiround simulation engine with reporting integrations
     
     def __init__(self, total_rounds: int = 8):
         self.total_rounds = total_rounds
@@ -134,7 +134,7 @@ class AdvancedFeistelEngine:
         return bytes(ciphertext_result), logs
 
     def decrypt_message(self, ciphertext_bytes: bytes, master_key: int) -> tuple:
-        """Decrypts messages and populates a sequence analysis log tracking layer."""
+        # decrypts messages and populates a sequence analysis log tracking layer
         logs = []
         decrypted_padded = bytearray()
         block_count = 0
@@ -156,13 +156,13 @@ class AdvancedFeistelEngine:
 
 
 class CryptographicReportWriter:
-    """Handles technical execution data consolidation into a cleanly formatted external Markdown file."""
+    # Handles technical execution data consolidation into a cleanly formatted external Markdown file
     
     REPORT_FILE = "cryptographic_report.md"
 
     @classmethod
     def initialize_report(cls):
-        """Creates or resets the report file with header metadata structural frames."""
+        # creates or resets the report file with header metadata structural frames
         with open(cls.REPORT_FILE, "w", encoding="utf-8") as f:
             f.write("# BIT4138 Advanced Cryptography Framework Execution Report\n")
             f.write(f"Generated automated lab evaluation analysis tracking layers.\n")
@@ -170,7 +170,7 @@ class CryptographicReportWriter:
 
     @classmethod
     def append_encryption_log(cls, plaintext: str, master_key: int, ciphertext_hex: str, logs: list):
-        """Appends technical data from encryption execution sequences."""
+        # appends technical data from encryption execution sequences
         with open(cls.REPORT_FILE, "a", encoding="utf-8") as f:
             f.write("## 1. Encryption Transaction Operations Log\n")
             f.write(f"* **Input Raw String:** `{plaintext}`\n")
@@ -185,7 +185,7 @@ class CryptographicReportWriter:
 
     @classmethod
     def append_decryption_log(cls, ciphertext_hex: str, master_key: int, recovered_text: str, logs: list):
-        """Appends analytical validation tracking profiles from decryption execution runs."""
+        # appends analytical validation tracking profiles from decryption execution runs
         with open(cls.REPORT_FILE, "a", encoding="utf-8") as f:
             f.write("## 2. Decryption Verification Operations Log\n")
             f.write(f"* **Target Ciphertext Payload Input:** `{ciphertext_hex}`\n")
@@ -200,7 +200,7 @@ class CryptographicReportWriter:
 
     @classmethod
     def append_avalanche_log(cls, input_orig: str, input_alt: str, c1_hex: str, c2_hex: str, metrics: dict):
-        """Appends statistical validation parameters resulting from active avalanche experiments."""
+        # appends statistical validation parameters resulting from active avalanche experiments
         with open(cls.REPORT_FILE, "a", encoding="utf-8") as f:
             f.write("## 3. Diffusion Evaluation: Avalanche Effect Experiment\n")
             f.write(f"* **Baseline Plaintext Vector ($P_1$):** `{input_orig}`\n")
@@ -218,7 +218,7 @@ class CryptographicReportWriter:
 
 
 class CryptanalysisLabSuite:
-    """Contains verification utilities for statistical randomness metrics testing."""
+    # contains verification utilities for statistical randomness metrics testing
     
     @staticmethod
     def count_bit_differences(bytes_a: bytes, bytes_b: bytes) -> int:
@@ -321,7 +321,7 @@ def display_interactive_menu():
             
         elif choice == '4':
             print(f"\nShutting down terminal session... Final report written to '{os.path.abspath(CryptographicReportWriter.REPORT_FILE)}'.\nGoodbye.")
-            break
+            sys.exit(0)
             
         else:
             print("Selection error. Please input a numerical value from 1 to 4.")
