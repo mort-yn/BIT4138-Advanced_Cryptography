@@ -141,6 +141,49 @@ class AdvancedFeistelEngine:
         clean_bytes = self.remove_pkcs7_padding(bytes(decrypted_padded))
         return clean_bytes.decode('utf-8')
 
+
+class CryptanalysisLabSuite:
+    # contains verification utilities for statistical randomness metrics testing
+    
+    @staticmethod
+    def count_bit_differences(bytes_a: bytes, bytes_b: bytes) -> int:
+        # computes the exact hamming distance (flipped bit counts) between two byte strings
+        diff_count = 0
+        for b1, b2 in zip(bytes_a, bytes_b):
+            xor_result = b1 ^ b2
+            # count set bits (hamming weight)
+            diff_count += bin(xor_result).count('1')
+        return diff_count
+
+    @classmethod
+    def execute_avalanche_experiment(cls, cipher_engine: AdvancedFeistelEngine, text_input: str, master_key: int):
+        # runs the avalanche effect experiment 
+        print("\n=== AVALANCHE EFFECT EXPERIMENT METRICS ===")
+        print(f"Original Text Input:  '{text_input}'")
+        
+        # Inject an isolated single-bit error into the plaintext input string
+        # Alter the first letter's lowest bit position string sequence
+        altered_char = chr(ord(text_input[0]) ^ 1)
+        altered_input = altered_char + text_input[1:]
+        print(f"Altered Input String: '{altered_input}' (Single-bit discrepancy injected)")
+        
+        # Process block encryption passes
+        c1 = cipher_engine.encrypt_message(text_input, master_key)
+        c2 = cipher_engine.encrypt_message(altered_input, master_key)
+        
+        print(f"Ciphertext 1 (Hex):   {c1.hex()}")
+        print(f"Ciphertext 2 (Hex):   {c2.hex()}")
+        
+        total_bits = len(c1) * 8
+        flipped_bits = cls.count_bit_differences(c1, c2)
+        avalanche_ratio = (flipped_bits / total_bits) * 100
+        
+        print(f"Total Evaluated Block Bits: {total_bits}")
+        print(f"Observed Flipped Bit Count:  {flipped_bits}")
+        print(f"Calculated Avalanche Ratio:  {avalanche_ratio:.2f}%")
+        print("Status Check: ", "Robust Diffusion Achieved" if 45 <= avalanche_ratio <= 55 else "Weak Linear Structural Profiling")
+
+
 def display_interactive_menu():
     # Builds an interactive console management layout for user control operations
     engine = AdvancedFeistelEngine(total_rounds=8)
@@ -175,16 +218,16 @@ def display_interactive_menu():
             except Exception as e:
                 print(f"Execution Error: Processing error encountered during translation. Details: {e}")
                 
-        # elif choice == '3':
-        #     sample_text = "Cryptography"
-        #     CryptanalysisLabSuite.execute_avalanche_experiment(engine, sample_text, master_key)
+        elif choice == '3':
+            sample_text = "Cryptography"
+            CryptanalysisLabSuite.execute_avalanche_experiment(engine, sample_text, master_key)
             
-        # elif choice == '4':
-        #     print("\nShutting down terminal session... Goodbye.")
-        #     break
+        elif choice == '4':
+            print("\nShutting down terminal session... Goodbye.")
+            break
             
-        # else:
-        #     print("Selection error. Please input a numerical value from 1 to 4.")
+        else:
+            print("Selection error. Please input a numerical value from 1 to 4.")
 
 
 if __name__ == "__main__":
