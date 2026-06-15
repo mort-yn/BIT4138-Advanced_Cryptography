@@ -42,3 +42,43 @@ class CryptographicPrimitives:
         return permuted_value
 
 
+class AdvancedFeistelEngine:
+    # core 64bit Feistel multiround simulation engine
+    
+    def __init__(self, total_rounds: int = 8):
+        self.total_rounds = total_rounds
+        self.block_size = 8  
+
+    def _round_function_f(self, right_half: int, subkey: int) -> int:
+        # non-linear cipher round execution mixing state inputs
+        mixed_input = (right_half ^ subkey) & 0xFFFFFFFF
+        substituted = CryptographicPrimitives.apply_sbox(mixed_input)
+        return CryptographicPrimitives.apply_pbox(substituted)
+
+    def _derive_round_subkeys(self, master_key: int) -> list:
+        # derives a distinct subkey array configuration from the master key input
+        subkeys = []
+        for i in range(self.total_rounds):
+            # dynamic circular shifts combined with a round constant to prevent symmetric keys
+            shifted_key = ((master_key >> (i * 3)) | (master_key << (64 - (i * 3)))) & 0xFFFFFFFF
+            subkeys.append(shifted_key ^ (i * 0x7F4A3C2B))
+        return subkeys
+
+    @staticmethod
+    def apply_pkcs7_padding(data: bytes, block_size: int = 8) -> bytes:
+        # applying the PKCS#7 standard block alignment padding
+        padding_len = block_size - (len(data) % block_size)
+        padding_bytes = bytes([padding_len] * padding_len)
+        return data + padding_bytes
+
+    @staticmethod
+    def remove_pkcs7_padding(padded_data: bytes) -> bytes:
+        # verifies and strips standard PKCS#7 padding values from the decrypted blocks
+        padding_len = padded_data[-1]
+        if padding_len < 1 or padding_len > 8:
+            raise ValueError("Cryptographic Failure: Invalid alignment formatting metadata identified.")
+        for i in range(len(padded_data) - padding_len, len(padded_data)):
+            if padded_data[i] != padding_len:
+                raise ValueError("Cryptographic Failure: Structural padding byte mismatch occurred.")
+        return padded_data[:-padding_len]
+
